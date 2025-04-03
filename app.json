@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "MenBreakfast",
-    "slug": "MenBreakfast",
+    "name": "Mens Breakfast Zw",
+    "slug": "mensBreakfast",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -13,9 +13,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.codemaverickzim.mensBreakfast"
     },
     "web": {
       "bundler": "metro",
@@ -32,10 +33,19 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "240d3303-1863-44de-8137-9ee5ecc35d24"
+      }
     }
   }
 }
