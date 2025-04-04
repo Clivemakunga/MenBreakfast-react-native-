@@ -9,9 +9,10 @@ import {
   Text, 
   Modal, 
   TextInput,
-  ActivityIndicator 
+  ActivityIndicator,
+  Platform
 } from 'react-native';
-import { MaterialIcons, FontAwesome, Ionicons } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, SlideInLeft } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
@@ -35,9 +36,10 @@ export default function AdminHome() {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
 
   // New event form state
   const [newEvent, setNewEvent] = useState({
@@ -49,15 +51,59 @@ export default function AdminHome() {
     type: 'conference'
   });
 
+  const showDatepicker = (mode: 'date' | 'time') => {
+    setPickerMode(mode);
+    setShowDatePicker(true);
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    // Handle Android dismissal
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      
+      if (event.type === 'dismissed') {
+        return;
+      }
+    }
+
+    if (selectedDate) {
+      if (Platform.OS === 'android') {
+        if (pickerMode === 'date') {
+          // User selected a date, now show time picker
+          const newDate = new Date(selectedDate);
+          // Keep the existing time
+          newDate.setHours(newEvent.date.getHours());
+          newDate.setMinutes(newEvent.date.getMinutes());
+          setNewEvent(prev => ({ ...prev, date: newDate }));
+          // Show time picker next
+          setTimeout(() => showDatepicker('time'), 100);
+          return;
+        } else {
+          // User selected a time
+          const newDate = new Date(newEvent.date);
+          newDate.setHours(selectedDate.getHours());
+          newDate.setMinutes(selectedDate.getMinutes());
+          setNewEvent(prev => ({ ...prev, date: newDate }));
+        }
+      } else {
+        // iOS handles both at once
+        setNewEvent(prev => ({ ...prev, date: selectedDate }));
+      }
+    }
+
+    // iOS automatically closes the picker
+    if (Platform.OS === 'ios') {
+      setShowDatePicker(false);
+    }
+  };
+
   // Fetch all data from Supabase
   const fetchData = async () => {
     setRefreshing(true);
     try {
-      // Get current admin user data
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // Fetch admin profile details
         const { data: profileData, error: profileError } = await supabase
           .from('users')
           .select('*')
@@ -78,7 +124,6 @@ export default function AdminHome() {
         });
       }
 
-      // Fetch events count
       const { count: eventsCount, error: eventsError } = await supabase
         .from('events')
         .select('*', { count: 'exact', head: true });
@@ -86,7 +131,6 @@ export default function AdminHome() {
       if (eventsError) throw eventsError;
       setEvents(Array(eventsCount || 0).fill({}));
 
-      // Fetch user count
       const { count: userCount, error: usersError } = await supabase
         .from('users')
         .select('*', { count: 'exact', head: true });
@@ -94,7 +138,6 @@ export default function AdminHome() {
       if (usersError) throw usersError;
       setUserCount(userCount || 0);
 
-      // Fetch pending approvals
       const { count: approvalsCount, error: approvalsError } = await supabase
         .from('approvals')
         .select('*', { count: 'exact', head: true })
@@ -111,7 +154,6 @@ export default function AdminHome() {
     }
   };
 
-  // Format date string
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Unknown';
     const date = new Date(dateString);
@@ -122,11 +164,9 @@ export default function AdminHome() {
     });
   };
 
-  // Initial data fetch
   useEffect(() => {
     fetchData();
     
-    // Set up real-time subscription for changes
     const subscription = supabase
       .channel('dashboard-changes')
       .on(
@@ -141,7 +181,6 @@ export default function AdminHome() {
     };
   }, []);
 
-  // Fetch events from Supabase
   const fetchEvents = async () => {
     setRefreshing(true);
     try {
@@ -167,7 +206,6 @@ export default function AdminHome() {
     }
   };
 
-  // Create a new event
   const createEvent = async () => {
     setError(null);
     setIsCreating(true);
@@ -204,14 +242,6 @@ export default function AdminHome() {
       setError(error.message || 'Network request failed. Please check your connection and try again.');
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  // Handle date change for the date picker
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setNewEvent({ ...newEvent, date: selectedDate });
     }
   };
 
@@ -385,18 +415,23 @@ export default function AdminHome() {
             <Text style={styles.inputLabel}>Date & Time</Text>
             <TouchableOpacity 
               style={styles.input}
-              onPress={() => setShowDatePicker(true)}
+              onPress={() => showDatepicker('date')}
             >
-              <Text>
-                {newEvent.date.toLocaleString()}
-              </Text>
+              <Text>Date: {newEvent.date.toLocaleDateString()}</Text>
+              <TouchableOpacity 
+                onPress={() => showDatepicker('time')}
+                style={{ marginTop: 8 }}
+              >
+                <Text>Time: {newEvent.date.toLocaleTimeString()}</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
             {showDatePicker && (
               <DateTimePicker
                 value={newEvent.date}
-                mode="datetime"
-                display="default"
+                mode={pickerMode}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={handleDateChange}
+                minimumDate={new Date()}
               />
             )}
           </View>
@@ -407,7 +442,7 @@ export default function AdminHome() {
               style={styles.input}
               value={newEvent.location}
               onChangeText={(text) => setNewEvent({ ...newEvent, location: text })}
-              placeholder="Bulawayo, Zimbabwe"
+              placeholder="San Francisco, CA or Online"
             />
           </View>
           
@@ -421,7 +456,6 @@ export default function AdminHome() {
             />
           </View>
 
-          {/* Error message display */}
           {error && (
             <Text style={styles.errorText}>
               {error}
@@ -653,7 +687,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     flexGrow: 1,
     padding: 20,
-    marginTop: 30
+    marginTop: 10
   },
   modalTitle: {
     fontSize: 24,
