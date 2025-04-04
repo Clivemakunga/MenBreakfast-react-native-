@@ -210,7 +210,7 @@ const EventsScreen = () => {
         layout={Layout.duration(300)}
         style={styles.eventCard}
       >
-        <TouchableOpacity onPress={() => router.push(`/events/${item.id}`)}>
+        <TouchableOpacity>
           <Image 
             source={{ uri: item.image_url }} 
             style={styles.eventImage} 

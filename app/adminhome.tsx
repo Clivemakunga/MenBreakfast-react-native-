@@ -1,9 +1,21 @@
-import { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, RefreshControl, Image, Text } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { 
+  StyleSheet, 
+  View, 
+  ScrollView, 
+  TouchableOpacity, 
+  RefreshControl, 
+  Image, 
+  Text, 
+  Modal, 
+  TextInput,
+  ActivityIndicator 
+} from 'react-native';
 import { MaterialIcons, FontAwesome, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, SlideInLeft } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 type AdminProfile = {
   surname: string;
@@ -22,6 +34,20 @@ export default function AdminHome() {
   const [userCount, setUserCount] = useState(0);
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // New event form state
+  const [newEvent, setNewEvent] = useState({
+    title: '',
+    description: '',
+    date: new Date(),
+    location: '',
+    image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30',
+    type: 'conference'
+  });
 
   // Fetch all data from Supabase
   const fetchData = async () => {
@@ -79,6 +105,7 @@ export default function AdminHome() {
 
     } catch (error) {
       console.error('Error fetching data:', error);
+      setError('Failed to load data. Please check your connection.');
     } finally {
       setRefreshing(false);
     }
@@ -113,6 +140,80 @@ export default function AdminHome() {
       supabase.removeChannel(subscription);
     };
   }, []);
+
+  // Fetch events from Supabase
+  const fetchEvents = async () => {
+    setRefreshing(true);
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('date', { ascending: true });
+      
+      if (error) throw error;
+      
+      if (data) {
+        const formattedEvents = data.map(event => ({
+          ...event,
+          date: new Date(event.date)
+        }));
+        setEvents(formattedEvents);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      setError('Failed to load events. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Create a new event
+  const createEvent = async () => {
+    setError(null);
+    setIsCreating(true);
+    
+    try {
+      const { data, error: supabaseError } = await supabase
+        .from('events')
+        .insert([{
+          title: newEvent.title,
+          description: newEvent.description,
+          date: newEvent.date.toISOString(),
+          location: newEvent.location,
+          image_url: newEvent.image_url,
+          type: newEvent.type
+        }])
+        .select();
+      
+      if (supabaseError) throw supabaseError;
+      
+      if (data) {
+        await fetchEvents();
+        setNewEvent({
+          title: '',
+          description: '',
+          date: new Date(),
+          location: '',
+          image_url: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30',
+          type: 'conference'
+        });
+        setShowCreateModal(false);
+      }
+    } catch (error) {
+      console.error('Error creating event:', error);
+      setError(error.message || 'Network request failed. Please check your connection and try again.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Handle date change for the date picker
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setNewEvent({ ...newEvent, date: selectedDate });
+    }
+  };
 
   return (
     <ScrollView 
@@ -194,6 +295,25 @@ export default function AdminHome() {
         )}
       </Animated.View>
 
+      {/* Event Management Buttons */}
+      <Animated.View entering={FadeInDown.delay(400)} style={styles.buttonRow}>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.primaryButton]}
+          onPress={() => setShowCreateModal(true)}
+        >
+          <MaterialIcons name="add" size={24} color="white" />
+          <Text style={styles.buttonText}>Create Event</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.secondaryButton]}
+          onPress={() => router.push('/rsvps')}
+        >
+          <MaterialIcons name="list" size={24} color="white" />
+          <Text style={styles.buttonText}>View RSVPs</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
       {/* Quick Actions Grid */}
       <Animated.View entering={SlideInLeft.delay(400)} style={styles.quickActions}>
         <TouchableOpacity 
@@ -228,6 +348,109 @@ export default function AdminHome() {
           <Text style={styles.actionText}>Create Invest Blogs</Text>
         </TouchableOpacity>
       </Animated.View>
+
+      {/* Create Event Modal */}
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <ScrollView contentContainerStyle={styles.modalContainer}>
+          <Text style={styles.modalTitle}>Create New Event</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Event Title</Text>
+            <TextInput
+              style={styles.input}
+              value={newEvent.title}
+              onChangeText={(text) => setNewEvent({ ...newEvent, title: text })}
+              placeholder="Tech Conference 2023"
+            />
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={newEvent.description}
+              onChangeText={(text) => setNewEvent({ ...newEvent, description: text })}
+              placeholder="Describe your event..."
+              multiline
+              numberOfLines={4}
+            />
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Date & Time</Text>
+            <TouchableOpacity 
+              style={styles.input}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text>
+                {newEvent.date.toLocaleString()}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={newEvent.date}
+                mode="datetime"
+                display="default"
+                onChange={handleDateChange}
+              />
+            )}
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Location</Text>
+            <TextInput
+              style={styles.input}
+              value={newEvent.location}
+              onChangeText={(text) => setNewEvent({ ...newEvent, location: text })}
+              placeholder="Bulawayo, Zimbabwe"
+            />
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Image URL</Text>
+            <TextInput
+              style={styles.input}
+              value={newEvent.image_url}
+              onChangeText={(text) => setNewEvent({ ...newEvent, image_url: text })}
+              placeholder="https://example.com/image.jpg"
+            />
+          </View>
+
+          {/* Error message display */}
+          {error && (
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
+          )}
+          
+          <View style={styles.modalButtons}>
+            <TouchableOpacity 
+              style={[styles.modalButton, styles.cancelButton]}
+              onPress={() => setShowCreateModal(false)}
+              disabled={isCreating}
+            >
+              <Text style={styles.modalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.modalButton, styles.createButton, isCreating && styles.disabledButton]}
+              onPress={createEvent}
+              disabled={isCreating || !newEvent.title || !newEvent.location}
+            >
+              {isCreating ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.modalButtonText}>Create Event</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -247,7 +470,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    marginTop: 40
+    marginTop: 10
   },
   profileHeader: {
     flexDirection: 'row',
@@ -374,5 +597,92 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#000',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F44336',
+    marginRight: 10,
+  },
+  createButton: {
+    backgroundColor: '#4CAF50',
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    borderRadius: 8,
+    marginHorizontal: 5,
+  },
+  primaryButton: {
+    backgroundColor: '#2196F3',
+  },
+  secondaryButton: {
+    backgroundColor: '#4CAF50',
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  modalContainer: {
+    flexGrow: 1,
+    padding: 20,
+    marginTop: 30
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 25,
+    textAlign: 'center',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 15,
+    marginTop: 10,
   },
 });
