@@ -91,7 +91,7 @@ const InvestmentAdviceList = () => {
         >
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Business Advice</Text>
+        <Text style={styles.headerTitle}>Blogs</Text>
         <View style={styles.headerRightPlaceholder} />
       </View>
 

@@ -15,6 +15,7 @@ export default function Register() {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const inputAnim = useRef(new Animated.Value(0)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
+  const textAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -54,6 +55,13 @@ export default function Register() {
       Animated.spring(buttonAnim, {
         toValue: 1,
         friction: 3,
+        useNativeDriver: true,
+      }),
+      Animated.timing(textAnim, {
+        toValue: 1,
+        duration: 800,
+        delay: 400,
+        easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
     ]).start();
@@ -107,10 +115,28 @@ export default function Register() {
     <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         <Animated.Image
-          source={require('../assets/images/react-logo.png')}
+          source={require('../assets/images/logo.png')}
           style={[styles.logo, { transform: [{ scale: scaleAnim }]}]}
           resizeMode="contain"
         />
+          <Animated.Text
+          style={[
+            styles.mensBreakfast,
+            {
+              opacity: textAnim,
+              transform: [
+                { 
+                  translateY: textAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  })
+                }
+              ]
+            }
+          ]}
+        >
+          Men's Breakfast (Byo)
+        </Animated.Text>
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>Join us to get started</Text>
 
@@ -333,5 +359,16 @@ const styles = StyleSheet.create({
   loginLinkBold: {
     fontWeight: 'bold',
     color: '#6C63FF',
+  },
+  mensBreakfast: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#6C63FF',
+    marginBottom: 8,
+    fontStyle: 'italic',
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(108, 99, 255, 0.2)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 8,
   },
 });

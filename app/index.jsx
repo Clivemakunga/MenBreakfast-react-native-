@@ -12,16 +12,15 @@ export default function Login() {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const inputAnim = useRef(new Animated.Value(0)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
+  const textAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Fade-in animation on mount
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 1000,
       useNativeDriver: true,
     }).start();
 
-    // Scale animation for the logo
     Animated.timing(scaleAnim, {
       toValue: 1,
       duration: 800,
@@ -29,7 +28,6 @@ export default function Login() {
       useNativeDriver: true,
     }).start();
 
-    // Input field animation (slide up)
     Animated.timing(inputAnim, {
       toValue: 1,
       duration: 800,
@@ -38,7 +36,6 @@ export default function Login() {
       useNativeDriver: true,
     }).start();
 
-    // Button animation (fade in with slight bounce)
     Animated.sequence([
       Animated.delay(600),
       Animated.timing(buttonAnim, {
@@ -58,6 +55,15 @@ export default function Login() {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Text animation
+    Animated.timing(textAnim, {
+      toValue: 1,
+      duration: 800,
+      delay: 400,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const handleLogin = async () => {
@@ -88,10 +94,30 @@ export default function Login() {
     <View style={styles.container}>
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         <Animated.Image
-          source={require('../assets/images/react-logo.png')}
+          source={require('../assets/images/logo.png')}
           style={[styles.logo, { transform: [{ scale: scaleAnim }] }]}
           resizeMode="contain"
         />
+        
+        <Animated.Text
+          style={[
+            styles.mensBreakfast,
+            {
+              opacity: textAnim,
+              transform: [
+                { 
+                  translateY: textAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  })
+                }
+              ]
+            }
+          ]}
+        >
+          Men's Breakfast (Byo)
+        </Animated.Text>
+
         <Text style={styles.title}>Welcome Back</Text>
         <Text style={styles.subtitle}>Login to continue</Text>
 
@@ -198,6 +224,17 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     marginBottom: 20,
+  },
+  mensBreakfast: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#6C63FF',
+    marginBottom: 8,
+    fontStyle: 'italic',
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(108, 99, 255, 0.2)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 8,
   },
   title: {
     fontSize: 28,

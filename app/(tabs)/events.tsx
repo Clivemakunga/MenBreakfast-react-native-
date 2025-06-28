@@ -33,6 +33,8 @@ type Event = {
   type: string;
   rsvp: boolean;
   isPastEvent?: boolean;
+  description?: string;
+  organizer?: string;
 };
 
 const EventsScreen = () => {
@@ -43,26 +45,19 @@ const EventsScreen = () => {
   const [loadingRSVP, setLoadingRSVP] = useState<string | null>(null);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
 
-  // Count RSVPs for each event and update the attendees count
   const updateAttendeeCounts = async (eventsData: Event[]) => {
     try {
-      // Get all RSVPs
       const { data: allRsvps, error: rsvpsError } = await supabase
         .from('rsvps')
         .select('event_id');
 
       if (rsvpsError) throw rsvpsError;
 
-      // Count RSVPs per event
       const rsvpCounts: Record<string, number> = {};
       allRsvps?.forEach(rsvp => {
-        if (!rsvpCounts[rsvp.event_id]) {
-          rsvpCounts[rsvp.event_id] = 0;
-        }
-        rsvpCounts[rsvp.event_id]++;
+        rsvpCounts[rsvp.event_id] = (rsvpCounts[rsvp.event_id] || 0) + 1;
       });
 
-      // Update events with the correct attendee counts
       return eventsData.map(event => ({
         ...event,
         attendees: rsvpCounts[event.id] || 0
@@ -70,18 +65,16 @@ const EventsScreen = () => {
 
     } catch (error) {
       console.error('Error updating attendee counts:', error);
-      return eventsData; // Return original data if error occurs
+      return eventsData;
     }
   };
 
-  // Fetch events and RSVP status from Supabase
   const fetchEvents = async () => {
     setRefreshing(true);
     try {
       const user = (await supabase.auth.getUser()).data.user;
       const now = new Date();
 
-      // Get all events
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
@@ -89,10 +82,8 @@ const EventsScreen = () => {
 
       if (eventsError) throw eventsError;
 
-      // Update attendee counts based on RSVPs
       const eventsWithAttendeeCounts = await updateAttendeeCounts(eventsData);
 
-      // Get user's RSVPs if logged in
       let rsvpedEventIds: string[] = [];
       if (user) {
         const { data: rsvpsData, error: rsvpsError } = await supabase
@@ -104,23 +95,19 @@ const EventsScreen = () => {
         rsvpedEventIds = rsvpsData.map(r => r.event_id);
       }
 
-      // Transform data with RSVP status and past event flag
       const formattedEvents = eventsWithAttendeeCounts?.map(event => {
         const eventDate = new Date(event.date);
-        const isPastEvent = eventDate <= now;
-        
         return {
           ...event,
-          image: event.image_url,
+          image_url: event.image_url,
           rsvp: rsvpedEventIds.includes(event.id),
-          isPastEvent
+          isPastEvent: eventDate <= now
         };
       }) || [];
 
       setEvents(formattedEvents);
       setLastRefreshTime(new Date());
     } catch (error) {
-      console.error('Error fetching data:', error);
       Alert.alert('Error', 'Failed to load events');
     } finally {
       setRefreshing(false);
@@ -131,15 +118,9 @@ const EventsScreen = () => {
     fetchEvents();
   }, []);
 
-  // Filter events based on selected filter
-  const filteredEvents = events.filter(event => {
-    if (activeFilter === 'upcoming') {
-      return !event.isPastEvent;
-    } else if (activeFilter === 'past') {
-      return event.isPastEvent;
-    }
-    return true;
-  });
+  const filteredEvents = events.filter(event => 
+    activeFilter === 'upcoming' ? !event.isPastEvent : event.isPastEvent
+  );
 
   const onRefresh = async () => {
     await fetchEvents();
@@ -154,8 +135,7 @@ const EventsScreen = () => {
         return;
       }
 
-      // Check if already RSVP'd
-      const { data: existingRSVP, error: checkError } = await supabase
+      const { data: existingRSVP } = await supabase
         .from('rsvps')
         .select('*')
         .eq('event_id', eventId)
@@ -167,7 +147,6 @@ const EventsScreen = () => {
         return;
       }
 
-      // Create new RSVP
       const { error } = await supabase
         .from('rsvps')
         .insert({
@@ -178,13 +157,11 @@ const EventsScreen = () => {
 
       if (error) throw error;
 
-      // Get updated RSVP count for this event
       const { count } = await supabase
         .from('rsvps')
         .select('*', { count: 'exact', head: true })
         .eq('event_id', eventId);
 
-      // Update local state
       setEvents(events.map(event => 
         event.id === eventId 
           ? { ...event, rsvp: true, attendees: count || event.attendees + 1 } 
@@ -192,11 +169,26 @@ const EventsScreen = () => {
       ));
 
     } catch (error) {
-      console.error('Error updating RSVP:', error);
       Alert.alert('Error', 'Failed to process RSVP');
     } finally {
       setLoadingRSVP(null);
     }
+  };
+
+  const handleEventPress = (event: Event) => {
+    router.push({
+      pathname: '/eventdetails',
+      params: {
+        id: event.id,
+        title: event.title,
+        date: event.date,
+        location: event.location,
+        image_url: event.image_url,
+        attendees: event.attendees.toString(),
+        description: event.description || 'Join us for an exciting event!',
+        organizer: event.organizer || "Men's Breakfast Team"
+      }
+    });
   };
 
   const renderEventItem = ({ item, index }: { item: Event, index: number }) => {
@@ -210,7 +202,7 @@ const EventsScreen = () => {
         layout={Layout.duration(300)}
         style={styles.eventCard}
       >
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => handleEventPress(item)}>
           <Image 
             source={{ uri: item.image_url }} 
             style={styles.eventImage} 
@@ -251,8 +243,8 @@ const EventsScreen = () => {
           style={[
             styles.rsvpButton,
             item.rsvp ? styles.rsvpButtonActive : styles.rsvpButtonInactive,
-            isRSVPDisabled ? styles.rsvpButtonDisabled : null,
-            loadingRSVP === item.id ? styles.rsvpButtonLoading : null
+            isRSVPDisabled && styles.rsvpButtonDisabled,
+            loadingRSVP === item.id && styles.rsvpButtonLoading
           ]}
           onPress={() => handleRSVP(item.id)}
           disabled={isRSVPDisabled}
